@@ -74,6 +74,9 @@ trait Syntax {
    */
 
   // TODO: Rename those types such that it's clear that they represent the types for certain kinds of identifiers
+  // TODO: Ich denke, fuer die Modulbezeichner waere es am schlausten, hier einzubauen, dass
+  //       alle Bezeichner noch ein Modul benennen, aus dem sie kommen. Ohne solch ein Modul sind
+  //       es lokale Namen. Es duerfen nur lokale Namen in Deklarationen gebunden werden. -- Ben 2013/05/25
   type Var = String
 
   type TypeVar = String

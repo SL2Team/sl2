@@ -196,7 +196,7 @@ trait Syntax {
   case class ConstString(value: String, attribute: Attribute = EmptyAttribute) extends Expr
   case class ConstReal(value : Double, attribute: Attribute = EmptyAttribute) extends Expr
   case class JavaScript(jsCode: String, signature: Option[ASTType], attribute: Attribute = EmptyAttribute) extends Expr
-
+  
   /**
     * Local definition in a let-binding.
     */

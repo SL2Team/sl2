@@ -81,6 +81,8 @@ trait Syntax {
   type ConVar = String
 
   type TConVar = String
+  
+  type ModuleVar = String
 
 
   /**
@@ -94,9 +96,22 @@ trait Syntax {
    * A program consists of top level definitions which might be
    * annotated with an explicit type signature.
    */
-  case class Program(signatures: Map[Var, FunctionSig], functionDefs: Map[Var, List[FunctionDef]],
-    dataDefs: List[DataDef], attribute: Attribute = EmptyAttribute) extends AST
-
+  case class Program(
+      imports: List[Import],
+      signatures: Map[Var, FunctionSig],
+      functionDefs: Map[Var, List[FunctionDef]],
+      dataDefs: List[DataDef],
+      attribute: Attribute = EmptyAttribute)
+    extends AST
+    
+  abstract class Import(path: String)
+  
+  case class QualifiedImport(
+      path: String,
+      name: ModuleVar,
+      attribute: Attribute = EmptyAttribute)
+    extends Import(path)
+  
   /**
    * Type signature for top-level function definitions.
    */
@@ -105,26 +120,44 @@ trait Syntax {
   /**
    *  Top-level function definitions.
    */
-  case class FunctionDef(patterns: List[Pattern], expr: Expr, attribute: Attribute = EmptyAttribute)
+  case class FunctionDef(
+      patterns: List[Pattern],
+      expr: Expr,
+      attribute: Attribute = EmptyAttribute)
 
   /**
    * Patterns for top-level function definitions.
    */
   sealed abstract class Pattern
   case class PatternVar(ide: Var, attribute: Attribute = EmptyAttribute) extends Pattern
-  case class PatternExpr(con: ConVar, patExprs: List[Pattern], attribute: Attribute = EmptyAttribute) extends Pattern
+  case class PatternExpr(
+      con: ConVar,
+      module: ModuleVar,
+      patExprs: List[Pattern],
+      attribute: Attribute = EmptyAttribute)
+    extends Pattern
 
+  /**
+   * Finds free variables in pattern expressions
+   */
   def varsList(p: Pattern): List[Var] = p match {
     case PatternVar(x, _)       => List(x)
-    case PatternExpr(_, sub, _) => sub.flatMap(vars)
+    case PatternExpr(_, _, sub, _) => sub.flatMap(vars)
   }
 
+  /**
+   * Finds free variables in pattern expressions
+   */
   def vars(p: Pattern): Set[Var] = varsList(p).toSet
 
   /**
    * Data type definitions.
    */
-  case class DataDef(ide: TConVar, tvars: List[TypeVar], constructors: List[ConstructorDef], attribute: Attribute = EmptyAttribute)
+  case class DataDef(
+    ide: TConVar,
+    tvars: List[TypeVar],
+    constructors: List[ConstructorDef],
+    attribute: Attribute = EmptyAttribute)
 
   /**
    * A datatype consists of a list of data constructors CondDef and
@@ -149,7 +182,7 @@ trait Syntax {
     val conTypes: List[ASTType] = conDefs flatMap (_.types)
 
     def selectAppTypeCon(ty: ASTType) = ty match {
-      case TyExpr(conType, _, _) => List(conType)
+      case TyExpr(conType, module, _, _) => List(conType)
       case _                     => Nil
     }
 
@@ -170,9 +203,9 @@ trait Syntax {
     }
   }
 
-  case class TyVar(ide: TypeVar, attribute: Attribute = EmptyAttribute) extends ASTType
+  case class TyVar(ide: TypeVar, module: ModuleVar, attribute: Attribute = EmptyAttribute) extends ASTType
   case class FunTy(types: List[ASTType], attribute: Attribute = EmptyAttribute) extends ASTType
-  case class TyExpr(conType: TConVar, typeParams: List[ASTType], attribute: Attribute = EmptyAttribute) extends ASTType
+  case class TyExpr(conType: TConVar, module: ModuleVar, typeParams: List[ASTType], attribute: Attribute = EmptyAttribute) extends ASTType
 
 
   /**
@@ -186,8 +219,8 @@ trait Syntax {
   case class Case(expr: Expr, alternatives: List[Alternative], attribute: Attribute = EmptyAttribute) extends Expr
   case class Let(definitions: List[LetDef], body: Expr, attribute: Attribute = EmptyAttribute) extends Expr
   case class App(function: Expr, expr: Expr, attribute: Attribute = EmptyAttribute) extends Expr
-  case class ExVar(ide: Var, attribute: Attribute = EmptyAttribute) extends Expr
-  case class ExCon(con: ConVar, attribute: Attribute = EmptyAttribute) extends Expr
+  case class ExVar(ide: Var, module: ModuleVar, attribute: Attribute = EmptyAttribute) extends Expr
+  case class ExCon(con: ConVar, module: ModuleVar, attribute: Attribute = EmptyAttribute) extends Expr
   case class ConstInt(value: Int, attribute: Attribute = EmptyAttribute) extends Expr
   case class ConstChar(value: Char, attribute: Attribute = EmptyAttribute) extends Expr
   case class ConstString(value: String, attribute: Attribute = EmptyAttribute) extends Expr
@@ -213,9 +246,10 @@ trait Syntax {
     case Case(_, _, attr) => attr
     case Let(_, _, attr) => attr
     case App(_, _, attr) => attr
-    case ExVar(_, attr) => attr
-    case ExCon(_, attr) => attr
+    case ExVar(_, _, attr) => attr
+    case ExCon(_, _, attr) => attr
     case ConstInt(_, attr) => attr
+    case ConstReal(_, attr) => attr
     case ConstChar(_, attr) => attr
     case ConstString(_, attr) => attr
     case JavaScript(_, _, attr) => attr
@@ -226,14 +260,17 @@ trait Syntax {
     fv(fd.expr) -- (for (p <- fd.patterns; v <- vars(p)) yield v)
   }
 
+  /**
+   * Returns the free variables of some expression
+   */
   def fv(expr : Expr) : Set[Var] = expr match {
-    case ExCon(_, _) => Set()
+    case ExCon(_, _, _) => Set()
     case ConstInt(_, _) => Set()
     case ConstChar(_, _) => Set()
     case ConstString(_, _) => Set()
     case ConstReal(_, _) => Set()
     case JavaScript(_, _, _) => Set()
-    case ExVar(x, _) => Set(x)
+    case ExVar(x, _, _) => Set(x)
     case App(l, r, _) => fv(l) ++ fv(r)
     case Let(defs, rhs, _) => fv(rhs) ++ (for(d <- defs; v <- fv(d.rhs)) yield v) -- defs.map(_.lhs)
     case Conditional(c, t, e, _) => fv(c) ++ fv(t) ++ fv(e)

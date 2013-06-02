@@ -1,0 +1,24 @@
+{
+"imports": {
+},
+
+"types": {
+    "Bool" : {
+        "constructors": {
+            "True" : [],
+            "False" : []
+        }
+    },
+    "List" : {
+        "typeArgs" : ["a"],
+        "constructors": {
+            "Nil" : [],
+            "Cons" : ["a", ["List", "a"]]
+        }
+    }
+},
+
+"functions": {
+},
+
+}
